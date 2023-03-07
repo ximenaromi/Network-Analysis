@@ -1,0 +1,13 @@
+---
+title: "hello-ona.Rmd"
+author: "Ximena_Rodriguez"
+date: "2023-03-07"
+output: md_document
+---
+
+```{r cars}
+library(tidyverse)
+library(igraph)
+```
+
+## Hello, network!
