@@ -1,0 +1,106 @@
+---
+title: "Fakebook_Network"
+author: "Ximena_Rodriguez"
+date: "2023-03-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# The Problem: Seat selection on a bus
+
+This centrality analysis gives an insight on how this measures can help to make informed decisions. For instance, in this case an intern wants to know where to sit on a bus to connect to other people in the company and maximize their possibility of getting a full-time job. With this analysis, the intern could also gain insights into the most central seats and identify the best place to sit for optimizing social interactions, minimizing travel time, or maximizing safety and security.
+
+This information could help the intern make an informed decision about where to sit on the bus on the first day of the internship, setting a positive tone for the rest of the experience.
+
+Below you will find the image of the bus map.
+
+```{r intro, echo= FALSE, fig.align='center'}
+
+library("knitr")
+include_graphics("C:/Users/ximen/OneDrive/MMA/4/Organizational Network/Centrality/busmap.png")
+
+
+  
+library(readxl)
+library(igraph)
+
+# Translating image into a database 
+
+edges = read_excel("C:/Users/ximen/OneDrive/MMA/4/Organizational Network/Centrality/edges.xlsx")
+
+
+nodes = c("1", "2", "3", "4", "5", "6", "A", "B", "C", "D")
+nodes = data.frame(nodes)
+
+
+
+
+```
+
+## Centrality Values
+
+Degree centrality, closeness centrality, and betweenness centrality are all important measures of centrality in network analysis, and their relative importance depends on the specific context and research question.
+
+Degree centrality measures the number of edges connected to a vertex, indicating how well-connected a vertex is to other vertices in the network. It is often useful in identifying highly connected or influential vertices in a network.
+
+
+```{r centrality}
+routes = graph_from_data_frame(d = edges, vertices = nodes, directed = TRUE)
+
+degree_cent = degree(routes, mode="all")
+```
+
+Closeness centrality measures the average length of the shortest path between a vertex and all other vertices in the network, indicating how quickly information or influence can spread from a vertex to other vertices in the network. It is often useful in identifying vertices that are important for communication or the flow of resources in a network.
+
+```{r closeness}
+closeness_cent = closeness(routes, mode="all")
+```
+
+
+Betweenness centrality measures the number of shortest paths that pass through a vertex, indicating how important a vertex is for connecting different parts of the network. It is often useful in identifying vertices that act as brokers or mediators in a network.
+
+```{r bet}
+betweenness_cent = betweenness(routes)
+```
+
+In summary, if the goal is to identify the most influential individuals in a social network, degree centrality may be the most important measure to consider. If the goal is to understand how information spreads through a network, closeness centrality may be more relevant. If the goal is to identify bottlenecks or chokepoints in a network, betweenness centrality may be the most important measure to consider.
+
+## Let's plot the network with the values we calculated
+
+```{r graphs, fig.height = 20, fig.width = 20, fig.align = "center"}
+# create a vector of vertex labels
+vertex_labels = paste("Node:", V(routes)$name, "\nDeg:", degree_cent, "\nBet:", round(betweenness_cent,2), "\nClo:", round(closeness_cent,2))
+
+# create a vector of vertex sizes
+vertex_sizes = degree_cent*5
+
+# Generate a new layout with increased spacing between nodes
+layout = layout_with_fr(routes, niter=1000)
+
+
+# plot the graph
+
+plot(routes, layout=layout, vertex.label=vertex_labels, vertex.size=vertex_sizes, vertex.label.cex = 1.2, vertex.color="light blue", main="Fakebook Network with Centrality Values")
+
+
+```
+
+
+
+## Which seat should the intern choose?
+
+The seat that the intern should choose is seat B. First, analyzing the degree of centrality we can see that nodes B,D and 3 have the same degree, but when comparing betweenness and closeness B outshines the other two nodes. 
+
+If the goal is to identify seats that are likely to be in frequent interaction with other passengers, then degree centrality may be a good choice, and the choice can be B, D or 3. Here the intern can decide on these seats based on the "chemistry" he/she feels with the other passengers.
+
+If the goal is to identify seats that are convenient for passengers to access or that provide a good vantage point for viewing the scenery outside, then closeness centrality may be a good choice. Choice B would be the selection here.
+
+If the goal is to identify seats that are likely to provide opportunities for passengers to meet and interact with others who are not in their immediate vicinity, then betweenness centrality may be a good choice. Choice B would be the selection in this measure.
+
+Nonetheless, to really make an informed decision one would also need to analyze the personal network of each passenger to determine which person is the most connected within the company.
+
+One possible downside of choosing the most connected seat would be that the intern has to socialize with the other nodes even when he/she needs his/her own space.
+
