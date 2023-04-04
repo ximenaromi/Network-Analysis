@@ -1,0 +1,150 @@
+---
+title: "Centrality and Efficiency"
+author: "Ximena_Rodriguez"
+date: "2023-04-03"
+output: md_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This analysis presents the relationship between the efficiency of patent application processing and measures of centrality in an organizational network. Specifically, we will examine a dataset of patent applications from the United States Patent and Trademark Office and explore how the centrality of individual examiners in the organizational network relates to the processing time of patent applications.
+
+
+
+### Loading data
+
+
+First we are going to load the data and see the attributes of each file.
+
+```{r load_files}
+load(file='applications.Rda')
+load(file='edges.Rda')
+print("Here are the attributes of applications:")
+names(applications)
+print("Here are the attributes of edges:")
+names(edges)
+```
+
+### Calculating number of days between Filing Date and End Date
+
+In this code chunk, we are preparing a dataset of patent applications for analysis by selecting only those that have been either abandoned or issued. We do this by checking if the "abandon_date" or "patent_issue_date" column contains any missing values.
+
+We then combine the selected applications into a single data frame and remove unnecessary columns, having a single column of end date which gives us if the patent was either abandoned or issued.
+
+
+```{r processed_apps}
+library(tidyverse)
+
+# Select patent applications that have either been abandoned or issued
+abandoned_apps = applications[!is.na(applications$abandon_date),]
+issued_apps = applications[!is.na(applications$patent_issue_date),]
+
+# Rename columns and remove unnecessary columns
+abandoned_apps = abandoned_apps %>% rename(end_date = abandon_date) %>% select(-c('patent_issue_date'))
+issued_apps = issued_apps %>% rename(end_date = patent_issue_date) %>% select(-c('abandon_date'))
+issued_apps$issued = 1
+abandoned_apps$issued = 0
+
+# Combine abandoned and issued patent applications into a single data frame
+apps = rbind(abandoned_apps, issued_apps)
+rm(abandoned_apps, issued_apps)
+```
+
+In the code below we are calculating the processing time, and we see that we have some data quality issues as the Min is -13636.
+
+
+```{r timecalc}
+app_proc_time = apps$end_date - apps$filing_date
+app_proc_time = as.numeric(app_proc_time)
+summary(app_proc_time)
+
+```
+Here we will filter the processing times that are greater than zero.
+
+```{r join_edges}
+apps$app_proc_time = app_proc_time
+apps = apps[apps$app_proc_time >=0, ]
+rm(applications, app_proc_time)
+
+edges = edges %>% inner_join(apps[c('application_number')], by = 'application_number') 
+head(edges, 10)
+```
+
+### Modeling
+
+Linear regression is a statistical technique used to model the relationship between a dependent variable (in this case, days of patent processing) and one or more independent variables (such as measures of centrality or attributes of examiner).
+
+Linear regression can help us identify the strength and direction of the relationship between these variables, as well as provide estimates of the magnitude of the effect of the independent variables on the dependent variable. 
+
+```{r graph}
+library(tidygraph)
+library(ggraph)
+edges = edges %>% rename(to = alter_examiner_id,
+                     from = ego_examiner_id)
+
+graph = as_tbl_graph(x = edges[c('to','from')], directed = TRUE , mode = 'out')
+
+nodes = graph %>%
+  activate(nodes) %>%
+  mutate(degree = centrality_degree(), 
+         closeness = centrality_closeness(),
+         betweenness = centrality_betweenness()) %>% 
+  rename(examiner_id = name) %>%  data.frame()
+
+apps$examiner_id = as.character(apps$examiner_id)
+
+
+apps = apps %>% left_join(nodes, by = 'examiner_id')
+```
+
+#### Linear Regression: Model 1
+
+First,we will drop any rows that have missing values in the variables "app_proc_time", "degree", "closeness", "betweenness", "gender", "race", or "tenure_days". This is done using the "drop_na" function from the "tidyverse" package.
+
+Then, we are converting the "gender" and "race" variables to factor variables, which will allow us to include them in the regression model.
+
+```{r lm}
+
+attach(apps)
+names(apps)
+
+apps = apps %>%  drop_na(app_proc_time, degree,closeness, betweenness, gender, race,tenure_days)
+
+apps$gender = as.factor(apps$gender)
+apps$race = as.factor(apps$race)
+
+lm_1 = lm(app_proc_time ~ degree + closeness + betweenness + gender + race + tenure_days + issued)
+
+summary(lm_1)
+
+```
+##### Results Model 1
+
+* All independent variables but "Race: Other" are significant to predict the number of days to process a patent. 
+
+* Having high degree of centrality and closeness on average gives more efficiency in processing the patents. To be specific, on average the processing time of an application is reduced by 117 days for each additional degree of closeness centrality that an examiner has.
+
+* White examiners take 59 days less on average processing applications holding all other variables equal. 
+
+* Male examiners take 25 days more on average processing applications holding all other variables equal.
+
+* Issued patents take 23 days more on average than the abandoned patents holding all other variables equal.
+
+* The multiple R-squared is 0.01004, which means that the independent variables explain only about 1% of the variation in the dependent variable. 
+
+#### Linear Regression: Model 2
+```{r lm2}
+lm_2 = lm(app_proc_time ~ degree + closeness + betweenness + gender + race + tenure_days+issued + gender*degree + gender*betweenness + gender*closeness)
+
+summary(lm_2)
+
+```
+##### Results Model 2
+
+* We see similar results in regards of the independent variables that were included in Model 1
+
+* Differences rely on the interaction terms which are also significant to predict the number of processing days for the patents. 
+
+* For every extra closeness degree that the male has, he will reduce the processing days by 19 days than for females.
